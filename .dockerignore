@@ -1,0 +1,13 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.*
+.vscode
+.gitss
+data
+airflow_settings.yaml
+logs/
+airflow.db
+airflow.cfg
