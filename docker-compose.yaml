@@ -97,33 +97,53 @@ services:
       - postgres
 
   spark-master:
-    build: ./spark
+    build:
+      context: ./spark/master
+      dockerfile: Dockerfile
     container_name: spark-master
-    command: ["/bin/bash", "/opt/spark/master.sh"]
+    command: ["/bin/bash", "/master.sh"]
     environment:
       - SPARK_MODE=master
+      - SPARK_MASTER_PORT=7077
+      - SPARK_MASTER_WEBUI_PORT=8080
+      - SPARK_HOME=/opt/bitnami/spark
+      - SPARK_MASTER_LOG=/opt/bitnami/spark/logs
     ports:
-      - "8081:8080"      # Spark Master Web UI
+      - "9080:8080"      # Spark Master Web UI
       - "7077:7077"      # Spark Master service port
-    networks:
+      - "6066:6066"      # Spark Master REST API port to communicate with Spark Submit operator in Airflow
+    networks: 
       - stock_market_network
+    volumes:
+      - ./airflow/dags:/opt/bitnami/spark/jobs
+      - spark-logs:/opt/bitnami/spark/logs
 
   spark-worker:
-    build: ./spark
+    build:
+      context: ./spark/worker
+      dockerfile: Dockerfile
     container_name: spark-worker
-    command: ["/bin/bash", "/opt/spark/worker.sh"]
+    command: ["/bin/bash", "/worker.sh"]
     environment:
       - SPARK_MODE=worker
-      - SPARK_MASTER_URL=spark://spark-master:7077   # <— لازم ده يتحدد
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_CORES=2
+      - SPARK_WORKER_MEMORY=2g
+      - SPARK_HOME=/opt/bitnami/spark
+      - SPARK_WORKER_LOG=/opt/bitnami/spark/logs
     depends_on:
       - spark-master
     ports:
-      - "8082:8081"      # Spark Worker Web UI
+      - "9081:8081"      # Spark Worker Web UI
     networks:
       - stock_market_network
+    volumes:
+      - ./airflow/dags:/opt/bitnami/spark/jobs
+      - spark-logs:/opt/bitnami/spark/logs
 volumes:
   postgres_data:
   pgadmin_data:
+  spark-logs:
 
 networks:
   stock_market_network:

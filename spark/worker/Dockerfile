@@ -1,25 +1,23 @@
-# نفس الـ base image حتى يتطابق مع الـ Master
-FROM openjdk:11-jre-slim
+FROM bitnami/spark:3.3.0
 
-ENV SPARK_VERSION=3.3.0
-ENV SCALA_VERSION=2.12
-ENV SPARK_HOME=/opt/spark
+ENV SPARK_HOME=/opt/bitnami/spark
 ENV PATH=$SPARK_HOME/bin:$PATH
+ENV SCALA_VERSION=2.12
 
-# Downloading Spark Standalone without Hadoop Ecosystem
-RUN apt-get update && apt-get install -y wget curl bash \
-    && wget https://downloads.apache.org/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-without-hadoop.tgz \
-    && tar -xzf spark-${SPARK_VERSION}-bin-without-hadoop.tgz -C /opt/ \
-    && mv /opt/spark-${SPARK_VERSION}-bin-without-hadoop $SPARK_HOME \
-    && rm spark-${SPARK_VERSION}-bin-without-hadoop.tgz \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+USER root
 
-# Downloading Snowflake Spark Connector + JDBC Libraries
-RUN wget https://repo1.maven.org/maven2/net/snowflake/spark-snowflake_2.12/2.12.0-spark_3.3/spark-snowflake_2.12-2.12.0-spark_3.3.jar \
-    && wget https://repo1.maven.org/maven2/net/snowflake/snowflake-jdbc/3.13.33/snowflake-jdbc-3.13.33.jar \
+# Install dependencies and Snowflake jars
+RUN mkdir -p /var/lib/apt/lists/partial \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends wget curl \
+    && wget --tries=3 --timeout=30 https://repo1.maven.org/maven2/net/snowflake/spark-snowflake_2.12/2.12.0-spark_3.3/spark-snowflake_2.12-2.12.0-spark_3.3.jar \
+    && wget --tries=3 --timeout=30 https://repo1.maven.org/maven2/net/snowflake/snowflake-jdbc/3.13.33/snowflake-jdbc-3.13.33.jar \
     && mv spark-snowflake_2.12-2.12.0-spark_3.3.jar $SPARK_HOME/jars/ \
-    && mv snowflake-jdbc-3.13.33.jar $SPARK_HOME/jars/
-
+    && mv snowflake-jdbc-3.13.33.jar $SPARK_HOME/jars/ \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+    
+RUN mkdir -p $SPARK_HOME/logs && chmod -R 777 $SPARK_HOME/logs
 
 COPY worker.sh /
 
