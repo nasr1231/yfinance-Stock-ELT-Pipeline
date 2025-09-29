@@ -1,0 +1,129 @@
+
+x-airflow-common: &airflow-common
+  environment:
+    # ====== Airflow Settings ======
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow    
+    AIRFLOW__WEBSERVER__SECRET_KEY: "07775000"
+    AIRFLOW_UID: 50000
+    # ====== Postgres Settings ======
+    POSTGRES_USER: airflow
+    POSTGRES_PASSWORD: airflow
+    POSTGRES_DB: airflow
+    # ====== pgAdmin Settings ======
+    PGADMIN_DEFAULT_EMAIL: admin@admin.com
+    PGADMIN_DEFAULT_PASSWORD: admin
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/plugins:/opt/airflow/plugins
+  networks:
+    - stock_market_network
+
+services:
+  postgres:
+    image: postgres:13
+    container_name: postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - stock_market_network
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - stock_market_network
+
+
+  airflow-webserver:
+    build: .
+    container_name: yfinance_airflow_webserver
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+  airflow-init:
+    build: .
+    <<: *airflow-common   
+    container_name: yfinance_airflow_init
+    environment:
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: airflow
+      _AIRFLOW_WWW_USER_PASSWORD: airflow@123
+    command: bash -c "airflow db init"
+    entrypoint: >
+      bash -c "
+      airflow db init &&
+      airflow users create
+        --username airflow
+        --firstname Mohamed
+        --lastname Nasr
+        --role Admin
+        --email airflow
+        --password 'airflow@123'
+      "
+    depends_on:
+      - postgres
+
+  airflow-scheduler:
+    build: .
+    container_name: yfinance_airflow_scheduler
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      - postgres
+
+  spark-master:
+    build: ./spark
+    container_name: spark-master
+    command: ["/bin/bash", "/opt/spark/master.sh"]
+    environment:
+      - SPARK_MODE=master
+    ports:
+      - "8081:8080"      # Spark Master Web UI
+      - "7077:7077"      # Spark Master service port
+    networks:
+      - stock_market_network
+
+  spark-worker:
+    build: ./spark
+    container_name: spark-worker
+    command: ["/bin/bash", "/opt/spark/worker.sh"]
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077   # <— لازم ده يتحدد
+    depends_on:
+      - spark-master
+    ports:
+      - "8082:8081"      # Spark Worker Web UI
+    networks:
+      - stock_market_network
+volumes:
+  postgres_data:
+  pgadmin_data:
+
+networks:
+  stock_market_network:
