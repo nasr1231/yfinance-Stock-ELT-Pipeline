@@ -1,11 +1,6 @@
 #!/bin/bash
 set -e
-
-# ============================
-#  حدد هنا عنوان الـ Spark Master
-#  مثال: spark://spark-master:7077
-#  أو مرره كمتغير بيئة عند التشغيل: -e SPARK_MASTER_URL=...
-# ============================
+# Set environment variables with default values if not already set
 : "${SPARK_MASTER_URL:?Need to set SPARK_MASTER_URL (e.g. spark://spark-master:7077)}"
 
 echo "Starting Spark Worker..."
@@ -18,5 +13,5 @@ $SPARK_HOME/sbin/start-worker.sh \
     --webui-port ${SPARK_WORKER_WEBUI_PORT} \
     ${SPARK_MASTER_URL}
 
-# إبقاء الـ container شغال
+# Keep the container running to maintain the Spark Worker
 tail -f $SPARK_HOME/logs/*
