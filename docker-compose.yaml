@@ -4,15 +4,15 @@ x-airflow-common: &airflow-common
     # ====== Airflow Settings ======
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow    
-    AIRFLOW__WEBSERVER__SECRET_KEY: "07775000"
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW__WEBSERVER__SECRET_KEY}    
     AIRFLOW_UID: 50000
     # ====== Postgres Settings ======
-    POSTGRES_USER: airflow
-    POSTGRES_PASSWORD: airflow
-    POSTGRES_DB: airflow
+    POSTGRES_USER: ${POSTGRES_USER}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    POSTGRES_DB: ${POSTGRES_DB}
     # ====== pgAdmin Settings ======
-    PGADMIN_DEFAULT_EMAIL: admin@admin.com
-    PGADMIN_DEFAULT_PASSWORD: admin
+    PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+    PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
   volumes:
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/logs:/opt/airflow/logs
