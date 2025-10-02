@@ -8,3 +8,4 @@ airflow.cfg
 airflow.db
 logs/
 venv/
+secrets.env

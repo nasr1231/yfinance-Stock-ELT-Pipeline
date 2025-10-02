@@ -14,4 +14,5 @@ $SPARK_HOME/sbin/start-worker.sh \
     ${SPARK_MASTER_URL}
 
 # Keep the container running to maintain the Spark Worker
-tail -f $SPARK_HOME/logs/*
+tail -f $SPARK_HOME/logs/* || tail -f /dev/null
+
