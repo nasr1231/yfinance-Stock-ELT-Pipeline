@@ -5,6 +5,7 @@ from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 from tasks.jobs import check_snowflake_conn, fetch_stock_data, store_stock_files
 import logging
+from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 
 default_args = {
     "owner": "airflow",
@@ -56,6 +57,13 @@ def stock_market_ETL_Pipeline():
         python_callable = store_stock_files,
         provide_context=True
     )
+    
+    # run_spark_job = SparkSubmitOperator(
+    #     task_id="run_spark_job",
+    #     application="/opt/spark/jobs/spark.py",  # ده الباث جوه Spark container
+    #     conn_id="spark_default",
+    #     verbose=True,
+    # )
     
     is_api_available() >> fetch_task >> check_snowflake_connection >> load_to_snowflake
 

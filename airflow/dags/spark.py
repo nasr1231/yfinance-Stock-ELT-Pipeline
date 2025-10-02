@@ -32,7 +32,7 @@ if __name__ == '__main__':
         df = spark.read \
         .format("snowflake") \
         .options(**sf_options) \
-        .option("dbtable", os.getenv("SNOWFLAKE_TABLE")) \
+        .option("dbtable", "RAW_JSON_DATA") \
         .load()
         
         # Define the JSON schema based on expected stock data structure
@@ -69,9 +69,12 @@ if __name__ == '__main__':
         
         # Deduplicate based on Date and Symbol
         df_final = df_final.dropDuplicates(["Date", "Symbol"])                
+                
+        # output_path = "/opt/spark/jobs"        
+        # df_final.write.partitionBy("Symbol").mode("append").parquet(output_path)
         
-        output_path = "/opt/spark"        
-        df_final.write.partitionBy("Symbol").mode("append").parquet(output_path)
+        output_path = "/opt/spark/jobs"        
+        df_final.write.mode("append").parquet(output_path)
 
         logging.info("Spark job completed successfully. Data written to %s", output_path)
         
