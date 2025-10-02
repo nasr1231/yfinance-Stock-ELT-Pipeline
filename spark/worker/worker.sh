@@ -15,4 +15,3 @@ $SPARK_HOME/sbin/start-worker.sh \
 
 # Keep the container running to maintain the Spark Worker
 tail -f $SPARK_HOME/logs/* || tail -f /dev/null
-

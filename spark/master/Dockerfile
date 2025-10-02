@@ -15,6 +15,8 @@ RUN apk add --no-cache wget curl bash \
 
 RUN mkdir -p $SPARK_HOME/logs && chmod -R 777 $SPARK_HOME/logs
 
+RUN pip3 install python-dotenv
+
 COPY master.sh /master.sh
 RUN chmod +x /master.sh
 
