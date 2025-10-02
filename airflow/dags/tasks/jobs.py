@@ -43,7 +43,7 @@ def fetch_stock_data(**context):
             df = df[["Date", "Open", "High", "Low", "Close", "Adj Close", "Volume"]]
             data[t] = df.to_dict(orient="records")
 
-            df.to_json(f"/opt/airflow/dags/{t}_data.json", orient="records")
+            #df.to_json(f"/opt/airflow/dags/{t}_data.json", orient="records") to store locally for testing
             logging.info("✅ Successfully fetched %d rows for %s", len(df), t)            
 
         except Exception as e:
@@ -69,66 +69,51 @@ def check_snowflake_conn():
             raise Exception("❌ Snowflake connection has failed.")
     finally:
         cursor.close()
-        conn.close()
-        
+        conn.close()      
+    
 def store_stock_files(**context):
     """
-    Uploads a JSON file retrieved from Airflow XComs to a Snowflake internal stage
-    only if the file for that ticker does not already exist.
-    """        
-        
+    Inserts stock JSON data directly into Snowflake table raw_json_data.
+    """
+
     data = context['ti'].xcom_pull(task_ids='get_stock_prices', key='stock_prices')
     request_period = context['ti'].xcom_pull(task_ids='get_stock_prices', key='request_period')
-    request_interval = context['ti'].xcom_pull(task_ids='get_stock_prices', key='request_interval')    
+    request_interval = context['ti'].xcom_pull(task_ids='get_stock_prices', key='request_interval')
 
-    if not data:        
+    if not data:
         logging.error("❌ No data found in XCom.")
         raise ValueError("No stock data found in XCom")
 
     hook = SnowflakeHook(snowflake_conn_id='snowflake_conn')
-    
-    for ticker, records in data.items():        
-        dest_file_name = f"{datetime.now().year}_{request_period}_{request_interval}_{ticker}.json"
-        stage_name = 'DATA_LAKE.RAW_JSON.raw_json'
-        
+
+    table_name = 'DATA_LAKE.RAW_JSON.raw_json_data'
+
+    for ticker, records in data.items():
         try:
-            # Check if file already exists in stage
-            list_sql = f"LIST @{stage_name} pattern='{dest_file_name}'"
-            result = hook.run(list_sql, autocommit=True, return_dictionaries=True)
-            if result and len(result) > 0:
-                logging.info(f"❗ File {dest_file_name} already exists in stage @{stage_name}. Skipping upload.")
-                continue
-            
             try:
                 json_data = json.dumps(records)
             except (TypeError, ValueError) as e:
                 logging.error(f"❌ Failed to serialize data for ticker {ticker}: {str(e)}")
                 continue
-            
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp_file:
-                tmp_file.write(json_data)
-                tmp_file_path = tmp_file.name
 
-            try:                
-                put_sql = f"""
-                    PUT file://{tmp_file_path} @{stage_name}/{dest_file_name}                    
-                    OVERWRITE = TRUE
-                """
-                hook.run(put_sql, autocommit=True)
-                logging.info(f"✅ File {dest_file_name} uploaded successfully to @{stage_name}.")
-            
-            except Exception as e:
-                logging.error(f"❌ Failed to upload {dest_file_name} to @{stage_name}: {str(e)}")
-                raise
-                        
-            finally: # Clean up temporary file                
-                if os.path.exists(tmp_file_path):
-                    os.unlink(tmp_file_path)
+            # Escape single quotes for SQL safety
+            json_data_safe = json_data.replace("'", "''")
+
+            # Insert directly into Snowflake table
+            insert_sql = f"""
+                INSERT INTO {table_name} (data, ticker, request_period, request_interval, load_timestamp)
+                SELECT PARSE_JSON('{json_data_safe}'),
+                       '{ticker}',
+                       '{request_period}',
+                       '{request_interval}',
+                       CURRENT_TIMESTAMP();
+            """
+            hook.run(insert_sql, autocommit=True)
+            logging.info(f"✅ Data for {ticker} inserted successfully into {table_name}.")
 
         except Exception as e:
-            logging.error(f"❌ Error processing ticker {ticker}: {str(e)}")
-            continue    
+            logging.error(f"❌ Error inserting data for ticker {ticker}: {str(e)}")
+            continue
 
-        logging.info(f"✅✅ File {dest_file_name} uploaded successfully. ✅✅")
-        
-    logging.info("✅ All files processed successfully.")        
+    logging.info("✅ All records inserted successfully.")
+    

@@ -1,48 +1,81 @@
 from pyspark.sql import SparkSession
-from pyspark import SparkContext
-from pyspark.sql.functions import explode, arrays_zip, from_unixtime
-from pyspark.sql.types import DateType
+from pyspark.sql.functions import col, round, to_date, from_json
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, LongType
 import logging
 import os
-import sys
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv("/opt/spark/secrets.env")
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 if __name__ == '__main__':
 
     def run_spark_job():
 
-        spark = SparkSession.builder.appName("FormatStock") \
-            .config("spark.master", "spark://spark-master:7077")\
-            .config("fs.s3a.access.key", os.getenv("AWS_ACCESS_KEY_ID", "minio")) \
-            .config("fs.s3a.secret.key", os.getenv("AWS_SECRET_ACCESS_KEY", "minio123")) \
-            .config("fs.s3a.endpoint", os.getenv("ENDPOINT", "http://minio:9000")) \
-            .config("fs.s3a.connection.ssl.enabled", "false") \
-            .config("fs.s3a.path.style.access", "true") \
-            .config("fs.s3a.attempts.maximum", "1") \
-            .config("fs.s3a.connection.establish.timeout", "5000") \
-            .config("fs.s3a.connection.timeout", "10000") \
-            .getOrCreate()
+        # Snowflake connection options
+        sf_options = {            
+            "sfAccount": os.getenv("SNOWFLAKE_ACCOUNT"),            
+            "sfUser": os.getenv("SNOWFLAKE_USER"),
+            "sfPassword": os.getenv("SNOWFLAKE_PASSWORD"),
+            "sfDatabase": os.getenv("SNOWFLAKE_DATABASE"),
+            "sfURL": os.getenv("SNOWFLAKE_URL"),
+            "sfSchema": os.getenv("SNOWFLAKE_SCHEMA"),            
+            "sfRole": os.getenv("SNOWFLAKE_ROLE"),
+            "sfWarehouse": os.getenv("SNOWFLAKE_WAREHOUSE")
+        }    
+                
+        spark = SparkSession.builder.appName("Formatting-Stock-Data") \
+            .config("spark.master", "spark://spark-master:7077") \
+            .getOrCreate()             
+        
+        df = spark.read \
+        .format("snowflake") \
+        .options(**sf_options) \
+        .option("dbtable", os.getenv("SNOWFLAKE_TABLE")) \
+        .load()
+        
+        # Define the JSON schema based on expected stock data structure
+        json_schema = StructType([
+            StructField("Date", StringType(), True),
+            StructField("Symbol", StringType(), True),
+            StructField("Open", DoubleType(), True),
+            StructField("High", DoubleType(), True),
+            StructField("Low", DoubleType(), True),
+            StructField("Close", DoubleType(), True),
+            StructField("Adj Close", DoubleType(), True),
+            StructField("Volume", LongType(), True)
+        ])
+        
+        df_parsed = df.withColumn("parsed", from_json(col("data"), json_schema))
 
-        # Read a JSON file from an MinIO bucket using the access key, secret key, 
-        # and endpoint configured above
-        df = spark.read.option("header", "false") \
-            .json(f"s3a://{os.getenv('SPARK_APPLICATION_ARGS')}/prices.json")
+        df_parsed = df_parsed.select(
+            "ticker", "request_period", "request_interval", "load_timestamp",
+            col("parsed.Date").alias("Date"),
+            col("parsed.Symbol").alias("Symbol"),
+            col("parsed.Open").alias("Open"),
+            col("parsed.High").alias("High"),
+            col("parsed.Low").alias("Low"),
+            col("parsed.Close").alias("Close"),
+            col("parsed.Volume").alias("Volume"),
+            col("parsed.`Adj Close`").alias("Adj_Close")  # Rename during selection
+        )
+        
+        df_final = df_parsed.withColumn("Date", to_date(col("Date"), "yyyy-MM-dd"))
+        
+        # Drop rows with missing essential fields
+        essential_fields = ["Date", "Open", "High", "Low", "Close", "Volume"]
+        df_final = df_final.na.drop(subset=essential_fields)
+        
+        # Deduplicate based on Date and Symbol
+        df_final = df_final.dropDuplicates(["Date", "Symbol"])                
+        
+        output_path = "/opt/spark"        
+        df_final.write.partitionBy("Symbol").mode("append").parquet(output_path)
 
-        # Explode the necessary arrays
-        df_exploded = df.select("timestamp", explode("indicators.quote").alias("quote")) \
-            .select("timestamp", "quote.*")
-
-        # Zip the arrays
-        df_zipped = df_exploded.select(arrays_zip("timestamp", "close", "high", "low", "open", "volume").alias("zipped"))
-        df_zipped = df_zipped.select(explode("zipped")).select("col.timestamp", "col.close", "col.high", "col.low", "col.open", "col.volume")
-        df_zipped = df_zipped.withColumn('date', from_unixtime('timestamp').cast(DateType()))
-
-        # Store in Snowflake  as parquet file
-        df_zipped.write \
-            .mode("overwrite") \
-            .option("header", "true") \
-            .option("delimiter", ",") \
-            .parquet(f"s3a://{os.getenv('SPARK_APPLICATION_ARGS')}/formatted_prices")
-
+        logging.info("Spark job completed successfully. Data written to %s", output_path)
+        
+        spark.stop()    
+            
+    # Run the Spark job
     run_spark_job()
-    
-    os.system('kill %d' % os.getpid()) ## Forcefully terminate the Spark application
