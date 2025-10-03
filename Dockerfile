@@ -20,13 +20,18 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Spark client (pre-built with Hadoop support)
-RUN curl -L https://archive.apache.org/dist/spark/spark-3.5.1/spark-3.5.1-bin-hadoop3.tgz \
-    | tar -xz -C /opt/ \
-    && mv /opt/spark-3.5.1-bin-hadoop3 /spark
+# Set Spark version
+ENV SPARK_VERSION=3.3.0
+ENV HADOOP_VERSION=3
+ENV SCALA_VERSION=2.12
+ENV SPARK_HOME=/spark
+
+# Install Spark client
+RUN curl -L "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz" \
+    | tar -xz -C / \
+    && mv /spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION} ${SPARK_HOME}
 
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-ENV SPARK_HOME=/spark
 ENV PATH=$SPARK_HOME/bin:$JAVA_HOME/bin:$PATH
 
 
