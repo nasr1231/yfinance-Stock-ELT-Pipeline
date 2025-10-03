@@ -9,3 +9,4 @@ airflow.db
 logs/
 venv/
 secrets.env
+airflow/plugins
