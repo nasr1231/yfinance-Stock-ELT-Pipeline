@@ -71,7 +71,7 @@ services:
     networks:
       - stock_market_network
     volumes:
-      - ./airflow/dags:/opt/spark/jobs
+      - ./spark/jobs:/opt/spark/jobs
       - spark-logs:/spark/logs
       - ./secrets.env:/opt/spark/jobs/secrets.env
 
@@ -96,6 +96,21 @@ services:
     volumes:
       - ./airflow/dags:/opt/spark/jobs
       - spark-logs:/spark/logs
+
+  spark-job:
+    build:
+      context: ./spark/jobs
+      dockerfile: Dockerfile
+    image: spark-job:latest
+    networks:
+      - stock_market_network
+    depends_on:
+      - spark-master
+      - spark-worker  
+    volumes:
+      - ./secrets.env:/app/secrets.env        
+      - ./spark_output:/app/output
+
   airflow-webserver:
     build: .
     container_name: yfinance_airflow_webserver
@@ -112,7 +127,7 @@ services:
       - ./airflow/logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
       - ./secrets.env:/opt/airflow/secrets.env
-
+      
   airflow-init:
     build: .
     <<: *airflow-common   

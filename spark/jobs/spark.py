@@ -6,24 +6,24 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv("/opt/spark/secrets.env")
+load_dotenv("/app/secrets.env")
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 if __name__ == '__main__':
 
     def run_spark_job():
-
+        
         # Snowflake connection options
         sf_options = {            
+            "sfURL": os.getenv("SNOWFLAKE_URL"),
             "sfAccount": os.getenv("SNOWFLAKE_ACCOUNT"),            
             "sfUser": os.getenv("SNOWFLAKE_USER"),
             "sfPassword": os.getenv("SNOWFLAKE_PASSWORD"),
             "sfDatabase": os.getenv("SNOWFLAKE_DATABASE"),
-            "sfURL": os.getenv("SNOWFLAKE_URL"),
             "sfSchema": os.getenv("SNOWFLAKE_SCHEMA"),            
             "sfRole": os.getenv("SNOWFLAKE_ROLE"),
             "sfWarehouse": os.getenv("SNOWFLAKE_WAREHOUSE")
-        }    
+        }                    
                 
         spark = SparkSession.builder.appName("Formatting-Stock-Data") \
             .config("spark.master", "spark://spark-master:7077") \
@@ -73,7 +73,7 @@ if __name__ == '__main__':
         # output_path = "/opt/spark/jobs"        
         # df_final.write.partitionBy("Symbol").mode("append").parquet(output_path)
         
-        output_path = "/opt/spark/jobs"        
+        output_path = "/app/output"     
         df_final.write.mode("append").parquet(output_path)
 
         logging.info("Spark job completed successfully. Data written to %s", output_path)
