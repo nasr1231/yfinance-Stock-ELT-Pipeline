@@ -2,10 +2,10 @@ import yfinance as yf
 from airflow.decorators import dag, task
 from airflow.sensors.base import PokeReturnValue
 from airflow.operators.python import PythonOperator
+from airflow.providers.docker.operators.docker import DockerOperator
 from datetime import datetime, timedelta
 from tasks.jobs import check_snowflake_conn, fetch_stock_data, store_stock_files
 import logging
-from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 
 default_args = {
     "owner": "airflow",
@@ -14,7 +14,7 @@ default_args = {
 }
 
 @dag(
-    dag_id="stock_market_ETL_Pipeline",
+    dag_id="stock_market_ELT_Pipeline",
     start_date=datetime(2025, 8, 5),
     schedule_interval='@daily',
     catchup=False,
@@ -58,14 +58,19 @@ def stock_market_ETL_Pipeline():
         provide_context=True
     )
     
-    # run_spark_job = SparkSubmitOperator(
-    #     task_id="run_spark_job",
-    #     application="/opt/spark/jobs/spark.py",  # ده الباث جوه Spark container
-    #     conn_id="spark_default",
-    #     verbose=True,
-    # )
+    transform_data_load_DWH = DockerOperator(
+        task_id="run_spark_job",
+        image="spark-job:latest",
+        container_name="spark-job-container",
+        docker_url="unix://var/run/docker.sock",
+        network_mode="yfinance-stock-elt-pipeline_stock_market_network",        
+        command="/spark/bin/spark-submit --master spark://spark-master:7077 /app/spark.py",
+        api_version="auto",
+        auto_remove="success",
+        mount_tmp_dir = False,
+    )
     
-    is_api_available() >> fetch_task >> check_snowflake_connection >> load_to_snowflake
+    is_api_available() >> fetch_task >> check_snowflake_connection >> load_to_snowflake >> transform_data_load_DWH
 
 
 stock_market_ETL_Pipeline()
