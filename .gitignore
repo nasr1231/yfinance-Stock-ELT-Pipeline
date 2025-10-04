@@ -10,3 +10,4 @@ logs/
 venv/
 secrets.env
 airflow/plugins
+test.py
