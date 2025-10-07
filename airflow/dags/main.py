@@ -4,22 +4,26 @@ from airflow.sensors.base import PokeReturnValue
 from airflow.operators.python import PythonOperator
 from airflow.providers.docker.operators.docker import DockerOperator
 from datetime import datetime, timedelta
-from tasks.jobs import check_snowflake_conn, fetch_stock_data, store_stock_files
+from tasks.jobs import *
 import logging
 
 default_args = {
     "owner": "airflow",
     "retries": 1,
-    "retry_delay": timedelta(minutes=5)
+    "retry_delay": timedelta(minutes=1),
+    "email_on_failure": False,
+    "email_on_retry": False,
 }
 
 @dag(
     dag_id="stock_market_ELT_Pipeline",
-    start_date=datetime(2025, 8, 5),
+    start_date=datetime(2025, 10, 1),
     schedule_interval='@daily',
     catchup=False,
     default_args=default_args,
-    tags=["stock_market"]
+    tags=["stock_market"],
+    on_success_callback=success_callback,
+    on_failure_callback=failure_callback,
 )
 def stock_market_ETL_Pipeline():
     

@@ -108,8 +108,7 @@ services:
       - spark-master
       - spark-worker  
     volumes:
-      - ./secrets.env:/app/secrets.env        
-      - ./spark_output:/app/output
+      - ./secrets.env:/app/secrets.env              
 
   airflow-webserver:
     build: .
@@ -127,6 +126,7 @@ services:
       - ./airflow/logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
       - ./secrets.env:/opt/airflow/secrets.env
+      - ./airflow/airflow.cfg:/opt/airflow/airflow.cfg
       
   airflow-init:
     build: .

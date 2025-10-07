@@ -1,12 +1,33 @@
-import os
-import tempfile
-from datetime import datetime
+from airflow.utils.email import send_email
 import yfinance as yf
 import json
 import logging
 from airflow.providers.snowflake.hooks.snowflake import SnowflakeHook
 
 tickers = ["AAPL","MSFT","AMZN","GOOGL","META","NVDA","TSLA","BRK-B","JPM","V"]
+
+def success_callback(context):
+    subject = f"✅ DAG {context['dag'].dag_id} Succeeded!"
+    
+    body = f"""
+    <h3>DAG {context['dag'].dag_id} succeeded successfully!</h3>
+    <p><b>Run ID:</b> {context['run_id']}</p>
+    <p><b>Execution Date:</b> {context['execution_date']}</p>
+    <p><b>Logs:</b> <a href="{context['task_instance'].log_url}">Click Here</a></p>
+    """
+    send_email(to=["your_email@gmail.com"], subject=subject, html_content=body)
+
+def failure_callback(context):
+    subject = f"❌ DAG {context['dag'].dag_id} Failed!"
+    
+    body = f"""
+    <h3>DAG {context['dag'].dag_id} failed!</h3>
+    <p><b>Task:</b> {context['task_instance'].task_id}</p>
+    <p><b>Run ID:</b> {context['run_id']}</p>
+    <p><b>Error:</b> {context['exception']}</p>
+    <p><b>Logs:</b> <a href="{context['task_instance'].log_url}">View Logs</a></p>
+    """    
+    send_email(to=["your_email@gmail.com"], subject=subject, html_content=body)
 
 def fetch_stock_data(**context):
     """
