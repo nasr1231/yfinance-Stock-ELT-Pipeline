@@ -174,10 +174,34 @@ services:
       - ./airflow/plugins:/opt/airflow/plugins
       - ./secrets.env:/opt/airflow/secrets.env    
   
+  #######################
+  # Metabase
+  #######################
+  metabase:
+    image: metabase/metabase:v0.48.7
+    container_name: metabase
+    restart: always
+    ports:
+      - "3000:3000"    # Metabase UI
+    environment:
+      - MB_DB_TYPE=postgres
+      - MB_DB_DBNAME=airflow
+      - MB_DB_PORT=5432
+      - MB_DB_USER=airflow
+      - MB_DB_PASS=airflow
+      - MB_DB_HOST=postgres
+    depends_on:
+      - postgres      
+    volumes:      
+      - metabase_data:/metabase-data
+    networks:
+      - stock_market_network  
+
 volumes:
   postgres_data:
   pgadmin_data:
   spark-logs:
+  metabase_data:
 
 networks:
   stock_market_network:
